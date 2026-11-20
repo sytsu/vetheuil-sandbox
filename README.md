@@ -1,9 +1,7 @@
 # vetheuil-sandbox
 
-Throwaway test for Vétheuil: an iOS app whose Xcode project was **written and built without a Mac**.
+Throwaway test app for [Vétheuil](https://github.com/sytsu/vetheuil). Its Xcode project was written and built without a Mac.
 
-- `tools/vt_new.py` generates `Sandbox.xcodeproj` (objectVersion 77, one synchronized folder, shared scheme). Object IDs are deterministic, so regenerating it gives a zero diff.
-- `tools/vt_validate.py` runs structural checks on the project (references, folders, schemes, asset catalogs, plists, shell-script phases).
-- `.github/workflows/build.yml` validates on Linux, builds unsigned on `macos-26`, packages an IPA and publishes it to the `rolling` pre-release.
-
-Latest IPA: `https://github.com/sytsu/vetheuil-sandbox/releases/download/rolling/Vetheuil-Sandbox.ipa`. It's unsigned, so sign and install it with SideStore or similar.
+- `Sandbox.xcodeproj` was generated on Linux (objectVersion 77, one synchronized folder, shared scheme).
+- `.github/workflows/vetheuil.yml` was written by `vt init-ci`, then edited by hand to add a build-info stamp and keep the IPA's file name stable.
+- Every push to `main` publishes an unsigned IPA here: `https://github.com/sytsu/vetheuil-sandbox/releases/download/rolling/Vetheuil-Sandbox.ipa`. Sign and install it with SideStore or similar.
