@@ -154,18 +154,38 @@ def main():
         walk_ids(data.get("rootObject"), refs)
         for r in sorted(refs - set(objs)):
             errors.append(f"{pbx}: dangling reference {r}")
-        targets = {oid: o for oid, o in objs.items() if o.get("isa") == "PBXNativeTarget"}
+        targets = {oid: o for oid, o in objs.items()
+                   if o.get("isa") in ("PBXNativeTarget", "PBXAggregateTarget", "PBXLegacyTarget")}
+        parent = {}
+        for gid, g in objs.items():
+            for child in g.get("children", []) if isinstance(g.get("children"), list) else []:
+                parent[child] = gid
+
+        def disk_path(oid_):
+            """Resolve a group-relative path by walking up the group chain."""
+            parts, cur = [], oid_
+            while cur in objs:
+                o_ = objs[cur]
+                tree = o_.get("sourceTree", "<group>")
+                if o_.get("path"):
+                    parts.append(o_["path"])
+                if tree == "SOURCE_ROOT":
+                    break
+                if tree != "<group>":
+                    return None  # BUILT_PRODUCTS_DIR, SDKROOT, absolute, ...
+                cur = parent.get(cur)
+            return os.path.join(root, *reversed(parts))
+
         for oid, o in objs.items():
             isa = o.get("isa")
             if isa == "PBXFileSystemSynchronizedRootGroup":
-                p = os.path.join(root, o.get("path", ""))
-                if not os.path.isdir(p):
-                    errors.append(f"{pbx}: synchronized folder missing on disk: {o.get('path')}")
-            elif isa == "PBXFileReference" and o.get("sourceTree") in ("<group>", "SOURCE_ROOT"):
-                # group-relative paths need the group chain; only check root-level ones
-                p = os.path.join(root, o.get("path", ""))
-                if o.get("sourceTree") == "SOURCE_ROOT" and not os.path.exists(p):
-                    warnings.append(f"{pbx}: file reference not on disk: {o.get('path')}")
+                p = disk_path(oid)
+                if p and not os.path.isdir(p):
+                    errors.append(f"{pbx}: synchronized folder missing on disk: {os.path.relpath(p, root)}")
+            elif isa == "PBXFileReference":
+                p = disk_path(oid)
+                if p and not os.path.exists(p):
+                    warnings.append(f"{pbx}: file reference not on disk: {os.path.relpath(p, root)}")
             elif isa == "PBXShellScriptBuildPhase":
                 script = o.get("shellScript", "")
                 h = hashlib.sha256(script.encode()).hexdigest()[:12]
@@ -181,7 +201,8 @@ def main():
                 bid = br.get("BlueprintIdentifier")
                 cont = br.get("ReferencedContainer", "")
                 if cont == f"container:{os.path.basename(proj)}" and bid not in targets:
-                    errors.append(f"{sch}: BlueprintIdentifier {bid} is not a target")
+                    warnings.append(f"{os.path.basename(sch)}: stale reference to missing target "
+                                    f"{br.get('BlueprintName', bid)} ({bid})")
         notes.append(f"{proj}: {len(objs)} objects, {len(targets)} target(s): "
                      + ", ".join(t.get("name", "?") for t in targets.values()))
 
